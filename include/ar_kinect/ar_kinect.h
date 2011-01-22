@@ -106,6 +106,7 @@ namespace ar_pose
     CvSize sz_;
     IplImage *capture_;
     bool gotcloud_;
+    int cloud_width_;
 
   };                            // end class ARPublisher
 }                               //end namespace ar_pose

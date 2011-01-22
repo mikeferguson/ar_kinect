@@ -42,6 +42,7 @@ namespace ar_pose
     std::string package_path = ros::package::getPath (ROS_PACKAGE_NAME);
     ros::NodeHandle n_param ("~");
     XmlRpc::XmlRpcValue xml_marker_center;
+    cloud_width_ = 640;
 
     // **** get parameters
 
@@ -173,6 +174,8 @@ namespace ar_pose
       ROS_BREAK ();
     }
 
+    int downsize = image_msg->width/cloud_width_;
+    
     arPoseMarkers_.markers.clear ();
     // check for known patterns
     for (i = 0; i < objectnum; i++)
@@ -224,34 +227,15 @@ namespace ar_pose
 
       if(gotcloud_){
         // Try to do high-definition via point clouds!
-        pcl::PointXYZRGBNormal point = cloud_((int)  (marker_info[k].pos[0]/4), (int) (marker_info[k].pos[1]/4));
+        pcl::PointXYZRGBNormal point = cloud_((int)  (marker_info[k].pos[0]/downsize), (int) (marker_info[k].pos[1]/downsize));
         if( ! (std::isnan(point.x) || std::isnan(point.y) || std::isnan(point.z)) ){
           pos[0] = point.x; 
           pos[1] = point.y; 
           pos[2] = point.z; 
             
-          //ROS_INFO("%f %f %f %f %f %f %f %f", marker_info[k].pos[0], marker_info[k].pos[1], point.x, point.y, point.z, point.normal_x, point.normal_y, point.normal_z);
-
-/*          btQuaternion q = btQuaternion(quat[0],quat[1],quat[2],quat[3]);
-          btVector3 best = btVector3(0,0,1)*q;
-          btVector3 target = btVector3(point.normal_x,point.normal_y,point.normal_z);
-
-          btVector3 c = best.cross(target);
-          float d = best.dot(target);
-          float s = (float) sqrt( (1.0f+d)*2.0f);   
-          float rs = 1.0f/s;
-          
-          
-
-          //btQuaternion r ( (btScalar) point.normal_z, (btScalar) point.normal_y, (btScalar) point.normal_x);
-          //btQuaternion r ( btCos(point.normal_y/point.normal_z), btCos(point.normal_x/point.normal_z), btTan(point.normal_x/point.normal_y));
-          btQuaternion r ( c.x()*rs, c.y()*rs, c.z()*rs, s*0.5f );
-          //r = r.slerp(q,0.1f * 
-*/
-
-          btQuaternion q = btQuaternion(quat[0],quat[1],quat[2],quat[3]);
-          btVector3 normal = btVector3(point.normal_x,point.normal_y,point.normal_z);
-          btVector3 up = btTransform(q)*btVector3(0,0,1);
+          btQuaternion q = btQuaternion(quat[0],quat[1],quat[2],quat[3]);                   // quaternion rotation as found by ArToolkit
+          btVector3 normal = btVector3(point.normal_x,point.normal_y,point.normal_z);       // normal vector from PCL
+          btVector3 up = btTransform(q)*btVector3(0,0,1);                                   //
 
           // get axis perpendicular to normal and up vector?
           btVector3 axis = up.cross(normal);
@@ -259,21 +243,13 @@ namespace ar_pose
           float angle = up.dot(normal);
           btQuaternion r = btQuaternion(axis, (btScalar) angle)*q;
 
-          ROS_INFO("normal %f %f %f",normal.x(), normal.y(),normal.z() );
+          ROS_INFO("normal %f %f %f %f %f %f",normal.x(), normal.y(),normal.z(), up.x(), up.y(), up.z());
           quat[0] = (double) q.x();
           quat[1] = (double) q.y();
           quat[2] = (double) q.z();
           quat[3] = (double) q.w();
-
-          /*hidef = true;
-          object[i].visible = 0; // old guesses are out of date*/
-          //ROS_INFO("%f %f %f %f %f", marker_info[k].pos[0], marker_info[k].pos[1], point.x, point.y, point.z);
         }
       }
-
-      //ROS_INFO (" Object num %i ------------------------------------------------", i);
-      //ROS_INFO (" QUAT: Pos x: %3.5f  y: %3.5f  z: %3.5f", pos[0], pos[1], pos[2]);
-      //ROS_INFO ("     Quat qx: %3.5f qy: %3.5f qz: %3.5f qw: %3.5f", quat[0], quat[1], quat[2], quat[3]);
 
       // **** publish the marker
 
@@ -365,13 +341,14 @@ namespace ar_pose
     // Compute surface normals and curvature
     pcl::NormalEstimation<pcl::PointXYZRGB, pcl::PointXYZRGBNormal> norm_est;
     norm_est.setSearchMethod (boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZRGB> > ());
-    norm_est.setKSearch (30);
+    norm_est.setKSearch (25);
   
     norm_est.setInputCloud (temp.makeShared());
     pcl::copyPointCloud (temp, cloud_);
     norm_est.compute (cloud_);
     
     if(!gotcloud_){
+      cloud_width_ = msg->width;
       std::cout << cloud_ << std::endl;
       pcl::PointXYZRGB point = temp(64,48);
       printf("%f %f %f\n", point.x , point.y , point.z);

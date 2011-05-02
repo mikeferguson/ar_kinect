@@ -4,8 +4,10 @@
  *  Ivan Dryanovski <ivan.dryanovski@gmail.com>
  *  William Morris <morris@ee.ccny.cuny.edu>
  *  Gautier Dumonteil <gautier.dumonteil@gmail.com>
- *  Michael Ferguson <ferguson@cs.albany.edu>
  *  http://robotics.ccny.cuny.edu
+ * 
+ *  Michael Ferguson <ferguson@cs.albany.edu>
+ *  http://robotics.ils.albany.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -343,9 +345,9 @@ namespace ar_pose
     norm_est.setSearchMethod (boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZRGB> > ());
     norm_est.setKSearch (25);
   
-    norm_est.setInputCloud (temp.makeShared());
-    pcl::copyPointCloud (temp, cloud_);
-    norm_est.compute (cloud_);
+    //norm_est.setInputCloud (temp.makeShared());
+    //pcl::copyPointCloud (temp, cloud_);
+    //norm_est.compute (cloud_);
     
     if(!gotcloud_){
       cloud_width_ = msg->width;

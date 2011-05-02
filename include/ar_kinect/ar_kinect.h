@@ -1,10 +1,13 @@
 /*
  *  Multi Marker Pose Estimation using ARToolkit
- *  Copyright (C) 2010, CCNY Robotics Lab
+ *  Copyright (C) 2010, CCNY Robotics Lab, 2011 ILS Robotics Lab
  *  Ivan Dryanovski <ivan.dryanovski@gmail.com>
  *  William Morris <morris@ee.ccny.cuny.edu>
  *  Gautier Dumonteil <gautier.dumonteil@gmail.com>
  *  http://robotics.ccny.cuny.edu
+ * 
+ *  Michael Ferguson <ferguson@cs.albany.edu>
+ *  http://robotics.ils.albany.edu
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -54,7 +57,7 @@
 
 const std::string cameraImageTopic_ = "/camera/rgb/image_color";
 const std::string cameraInfoTopic_  = "/camera/rgb/camera_info";
-const std::string cloudTopic_ = "/camera/depth/points2";
+const std::string cloudTopic_ = "/camera/rgb/points";
 
 const double AR_TO_ROS = 0.001;
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloud;

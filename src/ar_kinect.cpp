@@ -351,6 +351,8 @@ namespace ar_pose
     
     if(!gotcloud_){
       cloud_width_ = msg->width;
+      if(cloud_width_ == 0)
+        return;
       std::cout << cloud_ << std::endl;
       pcl::PointXYZRGB point = temp(64,48);
       printf("%f %f %f\n", point.x , point.y , point.z);

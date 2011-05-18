@@ -356,8 +356,8 @@ namespace ar_pose
       std::cout << cloud_ << std::endl;
       pcl::PointXYZRGB point = temp(64,48);
       printf("%f %f %f\n", point.x , point.y , point.z);
-      pcl::PointXYZRGBNormal point2 = cloud_(64,48);
-      printf("%f %f %f\n", point2.x , point2.y , point2.z);
+      //pcl::PointXYZRGBNormal point2 = cloud_(64,48);
+      //printf("%f %f %f %f %f %f\n", point2.x , point2.y , point2.z);
     }
 
     // can now use clouds

@@ -70,22 +70,14 @@ namespace ar_pose
 
   private:
     void arInit ();
-//    void getTransformationCallback (const sensor_msgs::ImageConstPtr &);
-//    void camInfoCallback (const sensor_msgs::CameraInfoConstPtr &);
     void getTransformationCallback (const sensor_msgs::PointCloud2ConstPtr &);
-//    void cloudCallback (const sensor_msgs::PointCloud2ConstPtr& msg);
 
     ros::NodeHandle n_;
     tf::TransformBroadcaster broadcaster_;
-//    ros::Subscriber sub_;
-//    image_transport::Subscriber cam_sub_;
     ros::Subscriber cloud_sub_;
     ros::Publisher arMarkerPub_;
 
-//    image_transport::ImageTransport it_;
     sensor_msgs::CvBridge bridge_;
-//    sensor_msgs::CameraInfo cam_info_;
-//    PointCloudWithNormals cloud_;
 
     // **** for visualisation in rviz
     ros::Publisher rvizMarkerPub_;
@@ -107,9 +99,6 @@ namespace ar_pose
     CvSize sz_;
     IplImage *capture_;
     bool configured_;
-//    bool gotcloud_;
-//    int cloud_width_;
-
   };                            // end class ARPublisher
 }                               //end namespace ar_pose
 

@@ -15,7 +15,6 @@
   <depend package="tf"/>
   <depend package="pcl_ros"/>
   <depend package="opencv2"/>
-  <depend package="image_transport"/>
   <depend package="cv_bridge"/>
   <depend package="roscpp"/>
 </package>

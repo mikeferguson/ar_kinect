@@ -40,13 +40,13 @@
 #include <ros/console.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <tf/transform_broadcaster.h>
-#include <image_transport/image_transport.h>
-#include <sensor_msgs/CameraInfo.h>
-#include <sensor_msgs/PointCloud2.h>
 #include <visualization_msgs/Marker.h>
+
+#include <sensor_msgs/PointCloud2.h>
 #include <pcl/ros/conversions.h>
 #include <pcl/point_types.h>
-#include <pcl/features/normal_3d.h>
+#include <pcl/registration/icp.h>
+#include <pcl/registration/registration.h>
 
 #include <opencv/cv.h>
 #include <cv_bridge/CvBridge.h>
@@ -55,13 +55,10 @@
 #include <ar_pose/ARMarker.h>
 #include <ar_kinect/object.h>
 
-const std::string cameraImageTopic_ = "/camera/rgb/image_color";
-const std::string cameraInfoTopic_  = "/camera/rgb/camera_info";
 const std::string cloudTopic_ = "/camera/rgb/points";
 
 const double AR_TO_ROS = 0.001;
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloud;
-typedef pcl::PointCloud<pcl::PointXYZRGBNormal> PointCloudWithNormals; 
 
 namespace ar_pose
 {
@@ -73,21 +70,22 @@ namespace ar_pose
 
   private:
     void arInit ();
-    void getTransformationCallback (const sensor_msgs::ImageConstPtr &);
-    void camInfoCallback (const sensor_msgs::CameraInfoConstPtr &);
-    void cloudCallback (const sensor_msgs::PointCloud2ConstPtr& msg);
+//    void getTransformationCallback (const sensor_msgs::ImageConstPtr &);
+//    void camInfoCallback (const sensor_msgs::CameraInfoConstPtr &);
+    void getTransformationCallback (const sensor_msgs::PointCloud2ConstPtr &);
+//    void cloudCallback (const sensor_msgs::PointCloud2ConstPtr& msg);
 
     ros::NodeHandle n_;
     tf::TransformBroadcaster broadcaster_;
-    ros::Subscriber sub_;
-    image_transport::Subscriber cam_sub_;
+//    ros::Subscriber sub_;
+//    image_transport::Subscriber cam_sub_;
     ros::Subscriber cloud_sub_;
     ros::Publisher arMarkerPub_;
 
-    image_transport::ImageTransport it_;
+//    image_transport::ImageTransport it_;
     sensor_msgs::CvBridge bridge_;
-    sensor_msgs::CameraInfo cam_info_;
-    PointCloudWithNormals cloud_;
+//    sensor_msgs::CameraInfo cam_info_;
+//    PointCloudWithNormals cloud_;
 
     // **** for visualisation in rviz
     ros::Publisher rvizMarkerPub_;
@@ -108,8 +106,9 @@ namespace ar_pose
     bool publishVisualMarkers_;
     CvSize sz_;
     IplImage *capture_;
-    bool gotcloud_;
-    int cloud_width_;
+    bool configured_;
+//    bool gotcloud_;
+//    int cloud_width_;
 
   };                            // end class ARPublisher
 }                               //end namespace ar_pose

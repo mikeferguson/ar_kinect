@@ -38,13 +38,33 @@ int main (int argc, char **argv)
 
 namespace ar_pose
 {
-  ARPublisher::ARPublisher (ros::NodeHandle & n):n_ (n), it_ (n_), gotcloud_(false)
+  tf::Transform tfFromEigen(Eigen::Matrix4f trans)
+  {
+    btMatrix3x3 btm;
+    btm.setValue(trans(0,0),trans(0,1),trans(0,2),
+               trans(1,0),trans(1,1),trans(1,2),
+               trans(2,0),trans(2,1),trans(2,2));
+    btTransform ret;
+    ret.setOrigin(btVector3(trans(0,3),trans(1,3),trans(2,3)));
+    ret.setBasis(btm);
+    return ret;
+  }
+
+  pcl::PointXYZRGB makeRGBPoint( float x, float y, float z )
+  {
+    pcl::PointXYZRGB p;
+    p.x = x;
+    p.y = y; 
+    p.z = z;
+    return p;
+  }
+
+  ARPublisher::ARPublisher (ros::NodeHandle & n):n_ (n), configured_(false)
   {
     std::string path;
     std::string package_path = ros::package::getPath (ROS_PACKAGE_NAME);
     ros::NodeHandle n_param ("~");
     XmlRpc::XmlRpcValue xml_marker_center;
-    cloud_width_ = 640;
 
     // **** get parameters
 
@@ -76,11 +96,10 @@ namespace ar_pose
 
     // **** subscribe
 
-    ROS_INFO ("Subscribing to info topic");
-    sub_ = n_.subscribe (cameraInfoTopic_, 1, &ARPublisher::camInfoCallback, this);
-    getCamInfo_ = false;
+    configured_ = false;
+    cloud_sub_ = n_.subscribe(cloudTopic_, 1, &ARPublisher::getTransformationCallback, this);
 
-    // **** advertsie 
+    // **** advertise 
 
     arMarkerPub_ = n_.advertise < ar_pose::ARMarkers > ("ar_pose_markers",0);
     if(publishVisualMarkers_)
@@ -95,43 +114,9 @@ namespace ar_pose
     arVideoClose ();
   }
 
-  void ARPublisher::camInfoCallback (const sensor_msgs::CameraInfoConstPtr & cam_info)
-  {
-    if (!getCamInfo_)
-    {
-      cam_info_ = (*cam_info);
-
-      cam_param_.xsize = cam_info_.width;
-      cam_param_.ysize = cam_info_.height;
-
-      cam_param_.mat[0][0] = cam_info_.P[0];
-      cam_param_.mat[1][0] = cam_info_.P[4];
-      cam_param_.mat[2][0] = cam_info_.P[8];
-      cam_param_.mat[0][1] = cam_info_.P[1];
-      cam_param_.mat[1][1] = cam_info_.P[5];
-      cam_param_.mat[2][1] = cam_info_.P[9];
-      cam_param_.mat[0][2] = cam_info_.P[2];
-      cam_param_.mat[1][2] = cam_info_.P[6];
-      cam_param_.mat[2][2] = cam_info_.P[10];
-      cam_param_.mat[0][3] = cam_info_.P[3];
-      cam_param_.mat[1][3] = cam_info_.P[7];
-      cam_param_.mat[2][3] = cam_info_.P[11];
-
-      cam_param_.dist_factor[0] = cam_info_.K[3];       // x0 = cX from openCV calibration
-      cam_param_.dist_factor[1] = cam_info_.K[6];       // y0 = cY from openCV calibration
-      cam_param_.dist_factor[2] = -100*cam_info_.D[0];  // f = -100*k1 from CV. Note, we had to do mm^2 to m^2, hence 10^8->10^2
-      cam_param_.dist_factor[3] = 1.0;                  // scale factor, should probably be >1, but who cares...
-      
-      arInit ();
-
-      ROS_INFO ("Subscribing to image and cloud topics");
-      cam_sub_ = it_.subscribe (cameraImageTopic_, 1, &ARPublisher::getTransformationCallback, this);
-      cloud_sub_ = n_.subscribe(cloudTopic_, 1, &ARPublisher::cloudCallback, this);
-
-      getCamInfo_ = true;
-    }
-  }
-
+  /* 
+   * Setup artoolkit
+   */
   void ARPublisher::arInit ()
   {
     arInitCparam (&cam_param_);
@@ -145,19 +130,46 @@ namespace ar_pose
 
     sz_ = cvSize (cam_param_.xsize, cam_param_.ysize);
     capture_ = cvCreateImage (sz_, IPL_DEPTH_8U, 4);
+    configured_ = true;
   }
 
-  void ARPublisher::getTransformationCallback (const sensor_msgs::ImageConstPtr & image_msg)
+  /* 
+   * One and only one callback, now takes cloud, does everything else needed. 
+   */
+  void ARPublisher::getTransformationCallback (const sensor_msgs::PointCloud2ConstPtr & msg)
   {
+    sensor_msgs::ImagePtr image_msg(new sensor_msgs::Image);
     ARUint8 *dataPtr;
     ARMarkerInfo *marker_info;
     int marker_num;
     int i, k, j;
 
-    /* Get the image from ROSTOPIC
-     * NOTE: the dataPtr format is BGR because the ARToolKit library was
-     * build with V4L, dataPtr format change according to the 
-     * ARToolKit configure option (see config.h).*/
+    /* do we need to initialize? */
+    if(!configured_)
+    {
+      if(msg->width == 0 || msg->height == 0)
+      {
+        ROS_ERROR ("Deformed cloud! Size = %d, %d.", msg->width, msg->height);
+        return;
+      }
+
+      cam_param_.xsize = msg->width;
+      cam_param_.ysize = msg->height;
+
+      cam_param_.dist_factor[0] = msg->width/2;         // x0 = cX from openCV calibration
+      cam_param_.dist_factor[1] = msg->height/2;        // y0 = cY from openCV calibration
+      cam_param_.dist_factor[2] = 0;                    // f = -100*k1 from CV. Note, we had to do mm^2 to m^2, hence 10^8->10^2
+      cam_param_.dist_factor[3] = 1.0;                  // scale factor, should probably be >1, but who cares...
+      
+      arInit ();
+    }
+
+    /* convert cloud to PCL */
+    PointCloud cloud;
+    pcl::fromROSMsg(*msg, cloud);
+ 
+    /* get an OpenCV image from the cloud */
+    pcl::toROSMsg (cloud, *image_msg);
     try
     {
       capture_ = bridge_.imgMsgToCv (image_msg, "bgr8");
@@ -166,20 +178,17 @@ namespace ar_pose
     {
       ROS_ERROR ("Could not convert from '%s' to 'bgr8'.", image_msg->encoding.c_str ());
     }
-    //cvConvertImage(capture,capture,CV_CVTIMG_FLIP);
     dataPtr = (ARUint8 *) capture_->imageData;
 
-    // detect the markers in the video frame
-    if (arDetectMarker (dataPtr, threshold_, &marker_info, &marker_num) < 0)
+    /* detect the markers in the video frame */
+    if (arDetectMarkerLite (dataPtr, threshold_, &marker_info, &marker_num) < 0)
     {
       argCleanup ();
-      ROS_BREAK ();
+      return;
     }
-
-    int downsize = image_msg->width/cloud_width_;
-    
+ 
     arPoseMarkers_.markers.clear ();
-    // check for known patterns
+    /* check for known patterns */
     for (i = 0; i < objectnum; i++)
     {
       k = -1;
@@ -199,103 +208,66 @@ namespace ar_pose
         object[i].visible = 0;
         continue;
       }
-        
-      // **** these are in the ROS frame
-      double quat[4], pos[3];
+      
+      /* create a cloud for marker corners */
+      int d = marker_info[k].dir;
+      PointCloud marker;
+      marker.push_back( cloud.at( (int)marker_info[k].vertex[(4-d)%4][0], (int)marker_info[k].vertex[(4-d)%4][1] ) ); // upper left
+      marker.push_back( cloud.at( (int)marker_info[k].vertex[(5-d)%4][0], (int)marker_info[k].vertex[(5-d)%4][1] ) ); // upper right
+      marker.push_back( cloud.at( (int)marker_info[k].vertex[(6-d)%4][0], (int)marker_info[k].vertex[(6-d)%4][1] ) ); // lower right
+      marker.push_back( cloud.at( (int)marker_info[k].vertex[(7-d)%4][0], (int)marker_info[k].vertex[(7-d)%4][1] ) );
 
-      if (object[i].visible == 0)
-      {
-        arGetTransMat (&marker_info[k], object[i].marker_center, object[i].marker_width, object[i].trans);
-      }
-      else
-      {
-        arGetTransMatCont (&marker_info[k], object[i].trans,
-                           object[i].marker_center, object[i].marker_width, object[i].trans);
-      }
-      object[i].visible = 1;
+      /* create an ideal cloud */
+      double w = object[i].marker_width;
+      PointCloud ideal;
+      ideal.push_back( makeRGBPoint(-w/2,w/2,0) );
+      ideal.push_back( makeRGBPoint(w/2,w/2,0) );
+      ideal.push_back( makeRGBPoint(w/2,-w/2,0) );
+      ideal.push_back( makeRGBPoint(-w/2,-w/2,0) );
 
-      double arQuat[4], arPos[3];
-      //arUtilMatInv (object[i].trans, cam_trans);
-      arUtilMat2QuatPos (object[i].trans, arQuat, arPos);
-
-      pos[0] = arPos[0] * AR_TO_ROS;
-      pos[1] = arPos[1] * AR_TO_ROS;
-      pos[2] = arPos[2] * AR_TO_ROS;
-
-      quat[0] = -arQuat[0];
-      quat[1] = -arQuat[1];
-      quat[2] = -arQuat[2];
-      quat[3] = arQuat[3];
-
-      if(gotcloud_){
-        // Try to do high-definition via point clouds!
-        pcl::PointXYZRGBNormal point = cloud_((int)  (marker_info[k].pos[0]/downsize), (int) (marker_info[k].pos[1]/downsize));
-        if( ! (std::isnan(point.x) || std::isnan(point.y) || std::isnan(point.z)) ){
-          pos[0] = point.x; 
-          pos[1] = point.y; 
-          pos[2] = point.z; 
-            
-          btQuaternion q = btQuaternion(quat[0],quat[1],quat[2],quat[3]);                   // quaternion rotation as found by ArToolkit
-          btVector3 normal = btVector3(point.normal_x,point.normal_y,point.normal_z);       // normal vector from PCL
-          btVector3 up = btTransform(q)*btVector3(0,0,1);                                   //
-
-          // get axis perpendicular to normal and up vector?
-          btVector3 axis = up.cross(normal);
-          // and angle
-          float angle = up.dot(normal);
-          btQuaternion r = btQuaternion(axis, (btScalar) angle)*q;
-
-          ROS_INFO("normal %f %f %f %f %f %f",normal.x(), normal.y(),normal.z(), up.x(), up.y(), up.z());
-          quat[0] = (double) q.x();
-          quat[1] = (double) q.y();
-          quat[2] = (double) q.z();
-          quat[3] = (double) q.w();
-        }
-      }
-
-      // **** publish the marker
-
+      /* get transformation */
+      Eigen::Matrix4f t;
+      pcl::estimateRigidTransformationSVD( marker, ideal, t );
+      
+      /* get final transformation */
+      tf::Transform transform = tfFromEigen(t.inverse());
+      
+      /* publish the marker */
       ar_pose::ARMarker ar_pose_marker;
-      ar_pose_marker.header.frame_id = image_msg->header.frame_id;
-      ar_pose_marker.header.stamp = image_msg->header.stamp;
+      ar_pose_marker.header.frame_id = msg->header.frame_id;
+      ar_pose_marker.header.stamp = msg->header.stamp;
       ar_pose_marker.id = object[i].id;
 
-      ar_pose_marker.pose.pose.position.x = pos[0];
-      ar_pose_marker.pose.pose.position.y = pos[1];
-      ar_pose_marker.pose.pose.position.z = pos[2];
+      ar_pose_marker.pose.pose.position.x = transform.getOrigin().getX();
+      ar_pose_marker.pose.pose.position.y = transform.getOrigin().getY();
+      ar_pose_marker.pose.pose.position.z = transform.getOrigin().getZ();
 
-      ar_pose_marker.pose.pose.orientation.x = quat[0];
-      ar_pose_marker.pose.pose.orientation.y = quat[1];
-      ar_pose_marker.pose.pose.orientation.z = quat[2];
-      ar_pose_marker.pose.pose.orientation.w = quat[3];
+      ar_pose_marker.pose.pose.orientation.x = transform.getRotation().getAxis().getX();
+      ar_pose_marker.pose.pose.orientation.y = transform.getRotation().getAxis().getY();
+      ar_pose_marker.pose.pose.orientation.z = transform.getRotation().getAxis().getZ();
+      ar_pose_marker.pose.pose.orientation.w = transform.getRotation().getW();
 
       ar_pose_marker.confidence = marker_info->cf;
       arPoseMarkers_.markers.push_back (ar_pose_marker);
 
-      // **** publish transform between camera and marker
-
-      btQuaternion rotation (quat[0], quat[1], quat[2], quat[3]);
-      btVector3 origin (pos[0], pos[1], pos[2]);
-      btTransform t (rotation, origin);
-
+      /* publish transform */
       if (publishTf_)
       {
-			tf::StampedTransform camToMarker (t, image_msg->header.stamp, image_msg->header.frame_id, object[i].name);
-			broadcaster_.sendTransform(camToMarker);
+	    broadcaster_.sendTransform(tf::StampedTransform(transform, msg->header.stamp, msg->header.frame_id, object[i].name));
       }
 
-      // **** publish visual marker
+      /* publish visual marker */
 
       if (publishVisualMarkers_)
       {
         btVector3 markerOrigin (0, 0, 0.25 * object[i].marker_width * AR_TO_ROS);
         btTransform m (btQuaternion::getIdentity (), markerOrigin);
-        btTransform markerPose = t * m; // marker pose in the camera frame
+        btTransform markerPose = transform * m; // marker pose in the camera frame
 
         tf::poseTFToMsg (markerPose, rvizMarker_.pose);
 
-        rvizMarker_.header.frame_id = image_msg->header.frame_id;
-        rvizMarker_.header.stamp = image_msg->header.stamp;
+        rvizMarker_.header.frame_id = msg->header.frame_id;
+        rvizMarker_.header.stamp = msg->header.stamp;
         rvizMarker_.id = object[i].id;
 
         rvizMarker_.scale.x = 1.0 * object[i].marker_width * AR_TO_ROS;
@@ -334,33 +306,4 @@ namespace ar_pose
     ROS_DEBUG ("Published ar_multi markers");
   }
 
-  void ARPublisher::cloudCallback(const sensor_msgs::PointCloud2ConstPtr& msg)
-  {
-    // convert to PCL
-    PointCloud temp;
-    pcl::fromROSMsg(*msg, temp);
- 
-    // Compute surface normals and curvature
-    pcl::NormalEstimation<pcl::PointXYZRGB, pcl::PointXYZRGBNormal> norm_est;
-    norm_est.setSearchMethod (boost::make_shared<pcl::KdTreeFLANN<pcl::PointXYZRGB> > ());
-    norm_est.setKSearch (25);
-  
-    //norm_est.setInputCloud (temp.makeShared());
-    //pcl::copyPointCloud (temp, cloud_);
-    //norm_est.compute (cloud_);
-    
-    if(!gotcloud_){
-      cloud_width_ = msg->width;
-      if(cloud_width_ == 0)
-        return;
-      std::cout << cloud_ << std::endl;
-      pcl::PointXYZRGB point = temp(64,48);
-      printf("%f %f %f\n", point.x , point.y , point.z);
-      //pcl::PointXYZRGBNormal point2 = cloud_(64,48);
-      //printf("%f %f %f %f %f %f\n", point2.x , point2.y , point2.z);
-    }
-
-    // can now use clouds
-    gotcloud_ = true;
-  }
 }                               // end namespace ar_pose

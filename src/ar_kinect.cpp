@@ -231,7 +231,22 @@ namespace ar_pose
       
       /* get final transformation */
       tf::Transform transform = tfFromEigen(t.inverse());
-      
+   
+      // any(transform == nan)
+      btMatrix3x3  m = transform.getBasis();
+      btVector3    p = transform.getOrigin();
+      bool invalid = false;
+      for(int i=0; i < 3; i++)
+        for(int j=0; j < 3; j++)
+          invalid = (invalid || isnan(m[i][j]) || fabs(m[i][j]) > 1.0);
+
+      for(int i=0; i < 3; i++)
+          invalid = (invalid || isnan(p[i]));
+       
+
+      if(invalid)
+        continue; 
+
       /* publish the marker */
       ar_pose::ARMarker ar_pose_marker;
       ar_pose_marker.header.frame_id = msg->header.frame_id;

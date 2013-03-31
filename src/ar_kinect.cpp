@@ -277,7 +277,7 @@ namespace ar_pose
       if (publishVisualMarkers_)
       {
         tf::Vector3 markerOrigin (0, 0, 0.25 * object[i].marker_width * AR_TO_ROS);
-        tf::Transform m (btQuaternion::getIdentity (), markerOrigin);
+        tf::Transform m (tf::Quaternion::getIdentity (), markerOrigin);
         tf::Transform markerPose = transform * m; // marker pose in the camera frame
 
         tf::poseTFToMsg (markerPose, rvizMarker_.pose);

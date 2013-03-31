@@ -56,7 +56,7 @@
 #include <ar_pose/ARMarker.h>
 #include <ar_kinect/object.h>
 
-const std::string cloudTopic_ = "/camera/depth_registered/points";
+const std::string cloudTopic_ = "points";
 
 const double AR_TO_ROS = 0.001;
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloud;

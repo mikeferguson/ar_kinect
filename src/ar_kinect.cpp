@@ -40,12 +40,12 @@ namespace ar_pose
 {
   tf::Transform tfFromEigen(Eigen::Matrix4f trans)
   {
-    btMatrix3x3 btm;
+    tf::Matrix3x3 btm;
     btm.setValue(trans(0,0),trans(0,1),trans(0,2),
                trans(1,0),trans(1,1),trans(1,2),
                trans(2,0),trans(2,1),trans(2,2));
-    btTransform ret;
-    ret.setOrigin(btVector3(trans(0,3),trans(1,3),trans(2,3)));
+    tf::Transform ret;
+    ret.setOrigin(tf::Vector3(trans(0,3),trans(1,3),trans(2,3)));
     ret.setBasis(btm);
     return ret;
   }
@@ -227,14 +227,15 @@ namespace ar_pose
 
       /* get transformation */
       Eigen::Matrix4f t;
-      pcl::estimateRigidTransformationSVD( marker, ideal, t );
+      TransformationEstimationSVD obj;
+      obj.estimateRigidTransformation( marker, ideal, t );
       
       /* get final transformation */
       tf::Transform transform = tfFromEigen(t.inverse());
    
       // any(transform == nan)
-      btMatrix3x3  m = transform.getBasis();
-      btVector3    p = transform.getOrigin();
+      tf::Matrix3x3  m = transform.getBasis();
+      tf::Vector3    p = transform.getOrigin();
       bool invalid = false;
       for(int i=0; i < 3; i++)
         for(int j=0; j < 3; j++)
@@ -275,9 +276,9 @@ namespace ar_pose
 
       if (publishVisualMarkers_)
       {
-        btVector3 markerOrigin (0, 0, 0.25 * object[i].marker_width * AR_TO_ROS);
-        btTransform m (btQuaternion::getIdentity (), markerOrigin);
-        btTransform markerPose = transform * m; // marker pose in the camera frame
+        tf::Vector3 markerOrigin (0, 0, 0.25 * object[i].marker_width * AR_TO_ROS);
+        tf::Transform m (btQuaternion::getIdentity (), markerOrigin);
+        tf::Transform markerPose = transform * m; // marker pose in the camera frame
 
         tf::poseTFToMsg (markerPose, rvizMarker_.pose);
 

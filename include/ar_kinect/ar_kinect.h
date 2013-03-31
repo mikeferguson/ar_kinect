@@ -47,6 +47,7 @@
 #include <pcl/point_types.h>
 #include <pcl/registration/icp.h>
 #include <pcl/registration/registration.h>
+#include <pcl/registration/transformation_estimation_svd.h>
 
 #include <opencv/cv.h>
 #include <cv_bridge/CvBridge.h>
@@ -55,10 +56,11 @@
 #include <ar_pose/ARMarker.h>
 #include <ar_kinect/object.h>
 
-const std::string cloudTopic_ = "/camera/rgb/points";
+const std::string cloudTopic_ = "/camera/depth_registered/points";
 
 const double AR_TO_ROS = 0.001;
 typedef pcl::PointCloud<pcl::PointXYZRGB> PointCloud;
+typedef pcl::registration::TransformationEstimationSVD<pcl::PointXYZRGB, pcl::PointXYZRGB> TransformationEstimationSVD;
 
 namespace ar_pose
 {

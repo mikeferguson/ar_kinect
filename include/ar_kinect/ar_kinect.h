@@ -50,7 +50,8 @@
 #include <pcl/registration/transformation_estimation_svd.h>
 
 #include <opencv/cv.h>
-#include <cv_bridge/CvBridge.h>
+#include <cv_bridge/cv_bridge.h>
+#include <sensor_msgs/image_encodings.h>
 
 #include <ar_pose/ARMarkers.h>
 #include <ar_pose/ARMarker.h>
@@ -78,8 +79,6 @@ namespace ar_pose
     tf::TransformBroadcaster broadcaster_;
     ros::Subscriber cloud_sub_;
     ros::Publisher arMarkerPub_;
-
-    sensor_msgs::CvBridge bridge_;
 
     // **** for visualisation in rviz
     ros::Publisher rvizMarkerPub_;

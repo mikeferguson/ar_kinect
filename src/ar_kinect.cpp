@@ -27,6 +27,7 @@
 #include "ar_kinect/ar_kinect.h"
 #include "ar_kinect/object.h"
 
+
 int main (int argc, char **argv)
 {
   ros::init (argc, argv, "ar_kinect");
@@ -105,7 +106,7 @@ namespace ar_pose
     if(publishVisualMarkers_)
     {
 		rvizMarkerPub_ = n_.advertise < visualization_msgs::Marker > ("visualization_marker", 0);
-	 }
+    }
   }
 
   ARPublisher::~ARPublisher (void)
@@ -170,15 +171,17 @@ namespace ar_pose
  
     /* get an OpenCV image from the cloud */
     pcl::toROSMsg (cloud, *image_msg);
+
+    cv_bridge::CvImagePtr cv_ptr;
     try
     {
-      capture_ = bridge_.imgMsgToCv (image_msg, "bgr8");
+        cv_ptr = cv_bridge::toCvCopy(image_msg, sensor_msgs::image_encodings::BGR8);
     }
-    catch (sensor_msgs::CvBridgeException & e)
+    catch (cv_bridge::Exception& e)
     {
       ROS_ERROR ("Could not convert from '%s' to 'bgr8'.", image_msg->encoding.c_str ());
     }
-    dataPtr = (ARUint8 *) capture_->imageData;
+    dataPtr = (ARUint8 *) cv_ptr->image.ptr();
 
     /* detect the markers in the video frame */
     if (arDetectMarkerLite (dataPtr, threshold_, &marker_info, &marker_num) < 0)
@@ -229,6 +232,7 @@ namespace ar_pose
       Eigen::Matrix4f t;
       TransformationEstimationSVD obj;
       obj.estimateRigidTransformation( marker, ideal, t );
+
       
       /* get final transformation */
       tf::Transform transform = tfFromEigen(t.inverse());
@@ -277,7 +281,7 @@ namespace ar_pose
       if (publishVisualMarkers_)
       {
         tf::Vector3 markerOrigin (0, 0, 0.25 * object[i].marker_width * AR_TO_ROS);
-        tf::Transform m (btQuaternion::getIdentity (), markerOrigin);
+        tf::Transform m (tf::Quaternion::getIdentity (), markerOrigin);
         tf::Transform markerPose = transform * m; // marker pose in the camera frame
 
         tf::poseTFToMsg (markerPose, rvizMarker_.pose);

@@ -28,6 +28,7 @@
 #include "ar_kinect/object.h"
 
 
+
 int main (int argc, char **argv)
 {
   ros::init (argc, argv, "ar_kinect");
@@ -165,12 +166,16 @@ namespace ar_pose
       arInit ();
     }
 
-    /* convert cloud to PCL */
-    PointCloud cloud;
-    pcl::fromROSMsg(*msg, cloud);
- 
+    /* convert cloud to PCL & PCLPointCloud2 */
+    PointCloud cloud;    
+    pcl::PCLPointCloud2 cloud_2;    
+    pcl_conversions::toPCL(*msg, cloud_2);
+    pcl::fromPCLPointCloud2(cloud_2, cloud);
+    
     /* get an OpenCV image from the cloud */
-    pcl::toROSMsg (cloud, *image_msg);
+    pcl::PCLImage pcl_image;
+    pcl::toPCLPointCloud2(cloud_2, pcl_image); 
+    pcl_conversions::moveFromPCL(pcl_image, *image_msg);
 
     cv_bridge::CvImagePtr cv_ptr;
     try
